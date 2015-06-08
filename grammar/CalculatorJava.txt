@@ -1,0 +1,79 @@
+### Code Generator Settings ###
+# Using grammar instructions, you can specify:
+# - the C++ or C# namespace and class for your parser
+# - a list of C++ include or C# using directives your source code needs
+# - a list of C++ or C# source code fragments to be included into the parser class
+
+<include:java.util.*>
+<namespace:calculator>
+<class:CalculatorParser>
+
+{private static final Map<String,Double> _variables = new HashMap<String,Double>();}
+
+### Root Symbols ###
+# The root symbols are those symbols that are externally visible.
+# They must be introduced with the instruction <export>.
+
+<export> ROOT : String = 
+    'Version'  {output.val = "Version 1.11 for Java"}         |
+    'About'    {output.val = "Copyright (C) 2013 Philip Oswald"} |
+    EXPRESSION {output.val = output1.val.toString()} ;
+    
+<export> EXPRESSION : Double = EXPRESSION_SET {output.val = output1.val} ;
+
+### Assignment Operator ###
+# The assignment operator is defined using a simple right recursion. 
+# Therefore, it associates from right to left (which is conistent to C/C++).
+
+EXPRESSION_SET : Double =
+    IDENT '=' EXPRESSION_SET {output.val = output3.val; _variables.put(output1.val, output.val)} |
+    EXPRESSION_ADD           {output.val = output1.val} ;
+
+### Additive Operators ###
+# These operators have equal precedence and associate from left to right.
+# Since left recursion is not allowed in LL grammars, defining a left-associative operator 
+# is a little tricky. A way around this is to pass the output of the left-hand side of
+# an expression to the right-hand side of the expression. This can be accomplished using
+# the <to:output> notation in the grammar.
+                    
+EXPRESSION_ADD : Double = 
+    EXPRESSION_MUL <to:output1> OP_ADD {output.val = output1.val} ;
+    
+OP_ADD : Double = 
+    '+' EXPRESSION_MUL {output.val += output2.val} <to:output> OP_ADD |  
+    '-' EXPRESSION_MUL {output.val -= output2.val} <to:output> OP_ADD | ;
+                                                         
+### Multiplicative Operators ###
+# These operators have equal precedence and associate from left to right
+
+EXPRESSION_MUL : Double = 
+    EXPRESSION_BRA <to:output1> OP_MUL {output.val = output1.val} ; 
+     
+OP_MUL : Double = 
+    '*' EXPRESSION_BRA {output.val *= output2.val} <to:output> OP_MUL |  
+    '/' EXPRESSION_BRA {output.val /= output2.val} <to:output> OP_MUL | ;
+     
+### Brackets ###
+
+EXPRESSION_BRA : Double = 
+    '(' EXPRESSION ')' {output.val = output2.val} |
+    VALUE              {output.val = output1.val} ;
+
+### Values ###
+
+VALUE : Double = SYMBOL {output.val = output1.val} |
+                 CONST  {output.val = Double.valueOf(output1.val)} ;
+
+SYMBOL : Double = 'pi'  {output.val = Math.PI} |
+                  'e'   {output.val = Math.E}  |
+                  IDENT {output.val = _variables.containsKey(output1.val) ? _variables.get(output1.val) : 0.0} ;
+                  
+IDENT : String = IDENTCHAR_1 IDENTCHARS_N {output.val = new String(_input, pos0.val, pos2.val-pos0.val)} ;
+IDENTCHARS_N = IDENTCHAR_N IDENTCHARS_N | ;
+IDENTCHAR_1  = <range> 'az' | <range> 'AZ' | '_' ;
+IDENTCHAR_N  = <range> 'az' | <range> 'AZ' | '_' | <range> '09' ;
+
+CONST  : String = DIGIT DIGITS {output.val = new String(_input, pos0.val, pos2.val-pos0.val)} ;
+DIGITS : Object = DIGIT DIGITS | ;
+        
+DIGIT = <range> '09' ;
